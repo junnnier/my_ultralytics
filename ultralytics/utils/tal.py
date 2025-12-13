@@ -104,11 +104,11 @@ class TaskAlignedAssigner(nn.Module):
         """
         mask_pos, align_metric, overlaps = self.get_pos_mask(
             pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt
-        )
+        )  # 计算初始的正样本掩码、对齐匹配程度（得分+框）、每个anchor预测框与gt框的IOU值。shape都为[b, 8400, count]
 
-        target_gt_idx, fg_mask, mask_pos = self.select_highest_overlaps(mask_pos, overlaps, self.n_max_boxes)
+        target_gt_idx, fg_mask, mask_pos = self.select_highest_overlaps(mask_pos, overlaps, self.n_max_boxes)  # 选择匹配程度最高的，每个anchor只保留与它IoU最高的那一个gt，每个gt最多分配个n_max_boxes个anchor
 
-        # Assigned target
+        # Assigned target 根据匹配结果，为每个anchor生成最终的目标。
         target_labels, target_bboxes, target_scores = self.get_targets(gt_labels, gt_bboxes, target_gt_idx, fg_mask)
 
         # Normalize

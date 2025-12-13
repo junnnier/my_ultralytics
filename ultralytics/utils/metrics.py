@@ -781,14 +781,14 @@ def ap_per_class(
         prec_values (np.ndarray): Precision values at mAP@0.5 for each class.
     """
     # Sort by objectness
-    i = np.argsort(-conf)
+    i = np.argsort(-conf)  # 置信度排序，返回从大到小的值的索引
     tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
 
-    # Find unique classes
+    # Find unique classes 找到target含有的类别和数量
     unique_classes, nt = np.unique(target_cls, return_counts=True)
     nc = unique_classes.shape[0]  # number of classes, number of detections
 
-    # Create Precision-Recall curve and compute AP for each class
+    # Create Precision-Recall curve and compute AP for each class 创建pr曲线
     x, prec_values = np.linspace(0, 1, 1000), []
 
     # Average precision, precision and recall curves
@@ -1079,7 +1079,7 @@ class DetMetrics(SimpleClass, DataExportMixin):
             names=self.names,
             on_plot=on_plot,
             prefix="Box",
-        )[2:]
+        )[2:]  # 计算每个类别的平均精度
         self.box.nc = len(self.names)
         self.box.update(results)
         self.nt_per_class = np.bincount(stats["target_cls"].astype(int), minlength=len(self.names))
@@ -1357,7 +1357,7 @@ class PoseMetrics(DetMetrics):
         Returns:
             (dict[str, np.ndarray]): Dictionary containing concatenated statistics arrays.
         """
-        stats = DetMetrics.process(self, save_dir, plot, on_plot=on_plot)  # process box stats
+        stats = DetMetrics.process(self, save_dir, plot, on_plot=on_plot)  # process box stats 处理检测box的结果
         results_pose = ap_per_class(
             stats["tp_p"],
             stats["conf"],

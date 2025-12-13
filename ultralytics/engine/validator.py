@@ -189,7 +189,7 @@ class BaseValidator:
             if self.args.compile:
                 model = attempt_compile(model, device=self.device)
             model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz, imgsz))  # warmup
-
+        # 开始进行验证
         self.run_callbacks("on_val_start")
         dt = (
             Profile(device=self.device),
@@ -226,14 +226,14 @@ class BaseValidator:
                 self.plot_predictions(batch, preds, batch_i)
 
             self.run_callbacks("on_val_batch_end")
-
+        # 验证结束后的操作
         stats = {}
-        self.gather_stats()
+        self.gather_stats()  # 收集所有gpu的数据
         if RANK in {-1, 0}:
             stats = self.get_stats()
             self.speed = dict(zip(self.speed.keys(), (x.t / len(self.dataloader.dataset) * 1e3 for x in dt)))
-            self.finalize_metrics()
-            self.print_results()
+            self.finalize_metrics()  # 计算最终验证结果
+            self.print_results()  # 打印结果
             self.run_callbacks("on_val_end")
 
         if self.training:
