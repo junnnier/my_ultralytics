@@ -7,12 +7,12 @@ model.load("weight/yolo11n-pose.pt")
 # Train the model
 results = model.train(data="ultralytics/cfg/datasets/face-keypoint.yaml",
                       epochs=300,
-                      imgsz=640,
+                      imgsz=[384,288],
                       batch=16,
-                      workers=6,
+                      workers=4,
                       close_mosaic=0,
                       patience=50,
                       optimizer='SGD',
-                      device="3",
+                      device="2,3",
                       project="runs/face_keypoint",
-                      name="20251210")
+                      name="20251218_test")

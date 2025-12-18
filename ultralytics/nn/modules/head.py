@@ -76,7 +76,7 @@ class Detect(nn.Module):
     legacy = False  # backward compatibility for v3/v5/v8/v9 models
     xyxy = False  # xyxy or xywh output
 
-    def __init__(self, nc: int = 80, ch: tuple = ()):
+    def __init__(self, nc: int = 80, ch: tuple = (), to_onnx=False):
         """Initialize the YOLO detection layer with specified number of classes and channels.
 
         Args:
@@ -84,6 +84,9 @@ class Detect(nn.Module):
             ch (tuple): Tuple of channel sizes from backbone feature maps.
         """
         super().__init__()
+        # -------------------自定义添加-------------------
+        self.to_onnx = to_onnx  # 自定义参数，用于导出onnx时可单独移除decode函数
+        # -----------------------------------------------
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
         self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
@@ -111,7 +114,7 @@ class Detect(nn.Module):
             self.one2one_cv2 = copy.deepcopy(self.cv2)
             self.one2one_cv3 = copy.deepcopy(self.cv3)
 
-    def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor] | tuple:
+    def forward(self, x: list[torch.Tensor], only_detect=True) -> list[torch.Tensor] | tuple:
         """Concatenate and return predicted bounding boxes and class probabilities."""
         if self.end2end:
             return self.forward_end2end(x)
@@ -121,6 +124,15 @@ class Detect(nn.Module):
         if self.training:  # Training path
             return x
         y = self._inference(x)
+
+        # -------------------自定义添加-------------------
+        # 转换[bc, box+cls, 8400] -> [bc, 8400, box+cls]，便于后续处理
+        if self.to_onnx and only_detect:
+            y = y.unsqueeze(-1).permute(0, 2, 1, 3)
+            y = y.view(y.shape[0], y.shape[1], y.shape[2])
+            return y
+        # -----------------------------------------------
+
         return y if self.export else (y, x)
 
     def forward_end2end(self, x: list[torch.Tensor]) -> dict | tuple:
@@ -157,6 +169,26 @@ class Detect(nn.Module):
         """
         # Inference path
         shape = x[0].shape  # BCHW
+
+        # -------------------自定义添加-------------------
+        # 导出onnx移除decode_bboxes函数使用
+        if self.to_onnx:
+            x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+            box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+            dbox = self.dfl(box)
+            cls = cls.sigmoid()
+            y = torch.cat((dbox, cls), 1)
+            return y
+            # ------snpe在gpu上层参数的限制，使用下面的方法------
+            # x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+            # x_cat = x_cat.view(shape[0], self.no, 1, -1)
+            # box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+            # dbox = self.dfl(box.view(shape[0], self.reg_max * 4, -1))
+            # cls = cls.view(shape[0], self.nc, -1).sigmoid()
+            # y = torch.cat((dbox, cls), 1)
+            # return y
+        # -----------------------------------------------
+
         x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
         if self.dynamic or self.shape != shape:
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
@@ -337,7 +369,7 @@ class Pose(Detect):
         >>> outputs = pose(x)
     """
 
-    def __init__(self, nc: int = 80, kpt_shape: tuple = (17, 3), ch: tuple = ()):
+    def __init__(self, nc: int = 80, kpt_shape: tuple = (17, 3), ch: tuple = (), to_onnx = False):
         """Initialize YOLO network with default parameters and Convolutional Layers.
 
         Args:
@@ -345,7 +377,10 @@ class Pose(Detect):
             kpt_shape (tuple): Number of keypoints, number of dims (2 for x,y or 3 for x,y,visible).
             ch (tuple): Tuple of channel sizes from backbone feature maps.
         """
-        super().__init__(nc, ch)
+        super().__init__(nc, ch, to_onnx)
+        # -------------------自定义添加-------------------
+        self.to_onnx = to_onnx  # 自定义参数，用于导出onnx时可单独移除decode函数
+        # -----------------------------------------------
         self.kpt_shape = kpt_shape  # number of keypoints, number of dims (2 for x,y or 3 for x,y,visible)
         self.nk = kpt_shape[0] * kpt_shape[1]  # number of keypoints total
 
@@ -356,6 +391,19 @@ class Pose(Detect):
         """Perform forward pass through YOLO model and return predictions."""
         bs = x[0].shape[0]  # batch size
         kpt = torch.cat([self.cv4[i](x[i]).view(bs, self.nk, -1) for i in range(self.nl)], -1)  # (bs, 17*3, h*w)
+        # -------------------自定义添加-------------------
+        # 导出onnx移除decode_bboxes函数使用
+        if self.to_onnx:
+            x = Detect.forward(self, x, only_detect=False)
+            box_kpt = torch.cat([x, kpt], 1)
+            box_kpt = box_kpt.permute(0, 2, 1)
+            return box_kpt
+            # ------snpe在gpu上层参数的限制，使用下面的方法------
+            # x = Detect.forward(self, x, only_detect=False)
+            # box_kpt = torch.cat([x, kpt], 1)
+            # box_kpt = box_kpt.unsqueeze(-1).permute(0, 2, 1, 3).squeeze(-1)
+            # return box_kpt
+        # -----------------------------------------------
         x = Detect.forward(self, x)
         if self.training:
             return x, kpt
