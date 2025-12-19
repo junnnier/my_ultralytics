@@ -4,6 +4,6 @@ model = YOLO("./runs/face_keypoint/20251210/weights/best.pt")  # load a custom-t
 model.model.model[-1].to_onnx = True  # 导出onnx模型时去除后处理中decode相关函数
 # Export the model
 model.export(format="onnx",
-             imgsz=(384,288),
+             imgsz=(288,384),
              simplify=True,
              opset=11)

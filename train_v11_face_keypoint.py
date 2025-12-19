@@ -7,7 +7,7 @@ model.load("weight/yolo11n-pose.pt")
 # Train the model
 results = model.train(data="ultralytics/cfg/datasets/face-keypoint.yaml",
                       epochs=300,
-                      imgsz=[384,288],
+                      imgsz=[288,384],  # image [h,w]
                       batch=16,
                       workers=4,
                       close_mosaic=0,

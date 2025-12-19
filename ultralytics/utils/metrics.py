@@ -1368,7 +1368,7 @@ class PoseMetrics(DetMetrics):
             save_dir=save_dir,
             names=self.names,
             prefix="Pose",
-        )[2:]
+        )[2:]  # 处理pose关键点的结果
         self.pose.nc = len(self.names)
         self.pose.update(results_pose)
         return stats
