@@ -5,6 +5,7 @@ from multiprocessing import Pool
 from typing import Callable, Dict, List, Union
 from widerface_evaluate.evaluation import evaluation
 
+# 多进程调用
 def parallelise(function: Callable, data: List, chunksize=100, verbose=True, num_workers=os.cpu_count()) -> List:
     num_workers = 1 if num_workers < 1 else num_workers  # Pool needs to have at least 1 worker.
     pool = Pool(processes=num_workers)
@@ -15,6 +16,7 @@ def parallelise(function: Callable, data: List, chunksize=100, verbose=True, num
     pool.join()
     return results
 
+# 模型推理
 def inference(img_name):
     image_path = os.path.join(testset_folder, img_name)
     results = model.predict(source=image_path, stream=True, imgsz=opt.img_size, conf=opt.conf_thres, iou=opt.iou_thres, augment=opt.augment, device=opt.device)
@@ -54,23 +56,26 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', default=1, type=int, help='num_workers for inference')
     parser.add_argument('-p', '--pred', default="widerface_evaluate/widerface_txt/")
     parser.add_argument('-g', '--gt', default='widerface_evaluate/ground_truth/')
+    parser.add_argument('--only-eval', action='store_true', help='only evaluation result, not inference.')
     opt = parser.parse_args()
     print(opt)
-
-    # 创建保存目录
-    if os.path.exists(opt.save_folder):
-        shutil.rmtree(opt.save_folder)
-    os.makedirs(opt.save_folder)
     
-    model = YOLO(opt.weights)
+    if not opt.only_eval:
+        # 创建保存目录
+        if os.path.exists(opt.save_folder):
+            shutil.rmtree(opt.save_folder)
+        os.makedirs(opt.save_folder)
+        
+        model = YOLO(opt.weights)
 
-    # 获取测试数据
-    testset_folder = opt.dataset_folder
-    test_dataset = []
-    for i in os.listdir(testset_folder):
-        base_path = os.listdir(f'{testset_folder}/{i}')
-        for j in base_path:
-            test_dataset.append(f'{i}/{j}')
-    
-    result = parallelise(inference, test_dataset, chunksize=100, num_workers=opt.num_workers)
+        # 获取所有测试数据图片
+        testset_folder = opt.dataset_folder
+        test_dataset = []
+        for i in os.listdir(testset_folder):
+            base_path = os.listdir(f'{testset_folder}/{i}')
+            for j in base_path:
+                test_dataset.append(f'{i}/{j}')
+        
+        # 多进程执行
+        result = parallelise(inference, test_dataset, chunksize=100, num_workers=opt.num_workers)
     evaluation(opt.pred, opt.gt)

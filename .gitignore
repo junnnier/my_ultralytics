@@ -198,3 +198,10 @@ calibration_*.npy
 *.heic
 *.ico
 *.raw
+
+
+# custom
+widerface_evaluate/widerface_txt/
+!widerface_evaluate/setup.py
+!pretrain_weights/
+!pretrain_weights/*.pt
