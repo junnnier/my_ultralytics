@@ -265,7 +265,7 @@ class Segment(Detect):
         >>> outputs = segment(x)
     """
 
-    def __init__(self, nc: int = 80, nm: int = 32, npr: int = 256, ch: tuple = ()):
+    def __init__(self, nc: int = 80, nm: int = 32, npr: int = 256, ch: tuple = (), to_onnx=False):
         """Initialize the YOLO model attributes such as the number of masks, prototypes, and the convolution layers.
 
         Args:
@@ -274,7 +274,7 @@ class Segment(Detect):
             npr (int): Number of protos.
             ch (tuple): Tuple of channel sizes from backbone feature maps.
         """
-        super().__init__(nc, ch)
+        super().__init__(nc, ch, to_onnx=to_onnx)
         self.nm = nm  # number of masks
         self.npr = npr  # number of protos
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
@@ -288,6 +288,17 @@ class Segment(Detect):
         bs = p.shape[0]  # batch size
 
         mc = torch.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)  # mask coefficients
+
+        # -------------------自定义添加-------------------
+        # 导出onnx移除decode_bboxes函数使用
+        if self.to_onnx:
+            x = Detect.forward(self, x, only_detect=False)
+            p = p.view(bs, self.nm, -1)
+            det = torch.cat([x, mc], 1)
+            det = det.unsqueeze(-1).permute(0, 2, 1, 3).squeeze(-1)
+            return det, p
+        # -----------------------------------------------
+
         x = Detect.forward(self, x)
         if self.training:
             return x, mc, p
